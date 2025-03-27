@@ -12,6 +12,8 @@ import fpu_types::*;
 // Branch Predictor Interface //
 ////////////////////////////////
 
+localparam integer DATA_WIDTH = 32;
+
 typedef struct packed {
     logic [31:0] if_pc;
     id_t if_id;
