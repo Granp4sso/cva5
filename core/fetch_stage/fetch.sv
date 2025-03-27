@@ -44,7 +44,9 @@ module fetch
         output logic fetch_complete,
         output fetch_metadata_t fetch_metadata,
 
-        branch_predictor_interface.fetch bp,
+        input branch_predictor_fetch_intf_i bp_slave_i,
+        output branch_predictor_fetch_intf_o bp_slave_o,
+
         ras_interface.fetch ras,
 
         //Instruction Metadata
@@ -133,13 +135,13 @@ module fetch
 
     priority_encoder #(.WIDTH(5))
     pc_sel_encoder (
-        .priority_vector ({1'b1, bp.use_prediction, early_branch_flush, branch_flush, gc.pc_override}),
+        .priority_vector ({1'b1, bp_slave_i.use_prediction, early_branch_flush, branch_flush, gc.pc_override}),
         .encoded_result (pc_sel)
     );
     assign pc_mux[0] = gc.pc;
-    assign pc_mux[1] = bp.branch_flush_pc;
+    assign pc_mux[1] = bp_slave_i.branch_flush_pc;
     assign pc_mux[2] = early_flush_pc;
-    assign pc_mux[3] = bp.is_return ? ras.addr : bp.predicted_pc;
+    assign pc_mux[3] = bp_slave_i.is_return ? ras.addr : bp_slave_i.predicted_pc;
     assign pc_mux[4] = pc_plus_4;
     assign next_pc = pc_mux[pc_sel];
 
@@ -153,20 +155,20 @@ module fetch
             exception_pending <= 1;
     end
 
-    assign bp.new_mem_request = update_pc;
-    assign bp.next_pc = next_pc;
-    assign bp.if_pc = pc;
-    assign bp.pc_id = pc_id;
-    assign bp.pc_id_assigned = pc_id_assigned;
+    assign bp_slave_o.new_mem_request = update_pc;
+    assign bp_slave_o.next_pc = next_pc;
+    assign bp_slave_o.if_pc = pc;
+    assign bp_slave_o.pc_id = pc_id;
+    assign bp_slave_o.pc_id_assigned = pc_id_assigned;
 
     ////////////////////////////////////////////////////
     //RAS support
     logic ras_update_permitted;
-    assign ras_update_permitted = bp.use_prediction & new_mem_request & ~(branch_flush | gc.pc_override | early_branch_flush);
+    assign ras_update_permitted = bp_slave_i.use_prediction & new_mem_request & ~(branch_flush | gc.pc_override | early_branch_flush);
 
-    assign ras.pop = bp.is_return & ras_update_permitted;
-    assign ras.push = bp.is_call & ras_update_permitted;
-    assign ras.branch_fetched = bp.is_branch & ras_update_permitted;
+    assign ras.pop = bp_slave_i.is_return & ras_update_permitted;
+    assign ras.push = bp_slave_i.is_call & ras_update_permitted;
+    assign ras.branch_fetched = bp_slave_i.is_branch & ras_update_permitted;
     assign ras.new_addr = pc_plus_4;
 
     ////////////////////////////////////////////////////
@@ -191,8 +193,8 @@ module fetch
         .int_out (subunit_id)
     );
     assign fetch_attr_fifo.data_in = '{
-        is_predicted_branch_or_jump : bp.use_prediction,
-        is_branch : (bp.use_prediction & bp.is_branch),
+        is_predicted_branch_or_jump : bp_slave_i.use_prediction,
+        is_branch : (bp_slave_i.use_prediction & bp_slave_i.is_branch),
         early_flush_pc : pc_plus_4,
         address_valid : address_valid,
         mmu_fault : tlb.is_fault,

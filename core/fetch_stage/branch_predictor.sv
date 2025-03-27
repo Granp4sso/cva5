@@ -31,10 +31,13 @@ module branch_predictor
     )
 
     (
-        input logic clk,
-        input logic rst,
-        branch_predictor_interface.branch_predictor bp,
-        input branch_results_t br_results,
+        input  logic clk,
+        input  logic rst,
+
+        input  branch_predictor_branch_predictor_intf_i bp_master_i,
+        output branch_predictor_branch_predictor_intf_o bp_master_o,
+
+        input  branch_results_t br_results,
         ras_interface.branch_predictor ras
     );
 
@@ -115,8 +118,8 @@ module branch_predictor
                 .a_wbe(tag_update_way[i]),
                 .a_wdata(ex_entry),
                 .a_addr(addr_utils.getHashedLineAddr(br_results.pc, i)),
-                .b_en(bp.new_mem_request),
-                .b_addr(addr_utils.getHashedLineAddr(bp.next_pc, i)),
+                .b_en(bp_intf_i.new_mem_request),
+                .b_addr(addr_utils.getHashedLineAddr(bp_intf_i.next_pc, i)),
                 .b_rdata(if_entry[i]),
             .*);
 
@@ -130,12 +133,12 @@ module branch_predictor
                 .a_wbe(target_update_way[i]),
                 .a_wdata(br_results.target_pc),
                 .a_addr(addr_utils.getHashedLineAddr(br_results.pc, i)),
-                .b_en(bp.new_mem_request),
-                .b_addr(addr_utils.getHashedLineAddr(bp.next_pc, i)),
+                .b_en(bp_intf_i.new_mem_request),
+                .b_addr(addr_utils.getHashedLineAddr(bp_intf_i.next_pc, i)),
                 .b_rdata(predicted_pc[i]),
             .*);
 
-            assign tag_matches[i] = ({if_entry[i].valid, if_entry[i].tag} == {1'b1, addr_utils.getTag(bp.if_pc)});
+            assign tag_matches[i] = ({if_entry[i].valid, if_entry[i].tag} == {1'b1, addr_utils.getTag(bp_intf_i.if_pc)});
         end
     end
     endgenerate
@@ -153,11 +156,11 @@ module branch_predictor
     assign use_predicted_pc = CONFIG.INCLUDE_BRANCH_PREDICTOR & tag_match;
 
     //Predicted PC and whether the prediction is valid
-    assign bp.predicted_pc = predicted_pc[hit_way];
-    assign bp.use_prediction = use_predicted_pc;
-    assign bp.is_branch = if_entry[hit_way].is_branch;
-    assign bp.is_return = if_entry[hit_way].is_return;
-    assign bp.is_call = if_entry[hit_way].is_call;
+    assign bp_intf_o.predicted_pc = predicted_pc[hit_way];
+    assign bp_intf_o.use_prediction = use_predicted_pc;
+    assign bp_intf_o.is_branch = if_entry[hit_way].is_branch;
+    assign bp_intf_o.is_return = if_entry[hit_way].is_return;
+    assign bp_intf_o.is_call = if_entry[hit_way].is_call;
 
     ////////////////////////////////////////////////////
     //Instruction Fetch metadata
@@ -172,9 +175,9 @@ module branch_predictor
     lutram_1w_1r #(.DATA_TYPE(branch_metadata_t), .DEPTH(MAX_IDS))
     branch_metadata_table (
         .clk(clk),
-        .waddr(bp.pc_id),
+        .waddr(bp_intf_i.pc_id),
         .raddr(br_results.id),
-        .ram_write(bp.pc_id_assigned),
+        .ram_write(bp_intf_i.pc_id_assigned),
         .new_ram_data('{
             branch_predictor_metadata : if_entry[hit_way].metadata,
             branch_prediction_used : use_predicted_pc,
@@ -211,7 +214,7 @@ module branch_predictor
     assign target_update_way = {CONFIG.BP.WAYS{branch_predictor_direction_changed}} & tag_update_way;
     ////////////////////////////////////////////////////
     //Target PC if branch flush occured
-    assign bp.branch_flush_pc = br_results.target_pc;
+    assign bp_intf_o.branch_flush_pc = br_results.target_pc;
 
     ////////////////////////////////////////////////////
     //RAS support

@@ -60,7 +60,11 @@ module cva5
     mem_interface dmmu_mem();
     mem_interface immu_mem();
 
-    branch_predictor_interface bp();
+    branch_predictor_branch_predictor_intf_i bp_master_i;
+    branch_predictor_branch_predictor_intf_o bp_master_o;
+    branch_predictor_fetch_intf_i bp_slave_i;
+    branch_predictor_fetch_intf_o bp_slave_o;
+
     branch_results_t br_results;
     logic branch_flush;
     logic potential_branch_exception;
@@ -253,7 +257,8 @@ module cva5
         .pc_id_assigned (pc_id_assigned),
         .fetch_complete (fetch_complete),
         .fetch_metadata (fetch_metadata),
-        .bp (bp),
+        .bp_master_i (bp_slave_i),
+        .bp_master_o (bp_slave_o),
         .ras (ras),
         .early_branch_flush (early_branch_flush),
         .early_branch_flush_ras_adjust (early_branch_flush_ras_adjust),
@@ -270,10 +275,14 @@ module cva5
     bp_block (
         .clk (clk),
         .rst (rst),
-        .bp (bp),
+        .bp_slave_i (bp_master_i),
+        .bp_slave_o (bp_master_o),
         .br_results (br_results),
         .ras (ras)
     );
+
+    assign bp_master_i = bp_slave_o;
+    assign bp_slave_i = bp_master_o;
 
     ras # (.CONFIG(CONFIG))
     ras_block(
